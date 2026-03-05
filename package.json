@@ -27,9 +27,11 @@
 	"homepage": "https://github.com/TharukaDananjaya/shadcn-theme-cli#readme",
 	"dependencies": {
 		"commander": "^14.0.3",
+		"culori": "^4.0.2",
 		"diff": "^8.0.3",
 		"fast-glob": "^3.3.3",
-		"picocolors": "^1.1.1"
+		"picocolors": "^1.1.1",
+		"tailwindcss": "^4.2.1"
 	},
 	"devDependencies": {
 		"@types/diff": "^7.0.2",
