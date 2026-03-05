@@ -88,8 +88,8 @@ program
 		}
 
 		if (opts.backup) {
-			if (await checkFileExists(file)) {
-				console.error(pc.green(`Backup file already exists. Skipping backup to avoid overwrite: ${file}.bak`));
+			if (await checkFileExists(`${file}.bak`)) {
+				console.error(pc.yellow(`Backup file already exists. Skipping backup to avoid overwrite: ${file}.bak`));
 			} else {
 				const bak = await backupFile(file);
 				console.log(pc.gray(`Backup created: ${bak}`));
