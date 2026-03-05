@@ -41,10 +41,6 @@ function containsBlock(css: string, selector: string) {
   return re.test(css);
 }
 
-function containsAny(css: string, needles: string[]) {
-  return needles.every((n) => css.includes(n));
-}
-
 export async function runDoctor(detectedCssFile: string | null): Promise<DoctorResult> {
   const messages: string[] = [];
   const warnings: string[] = [];
