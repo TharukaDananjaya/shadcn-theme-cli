@@ -52,7 +52,7 @@ export async function runDoctor(detectedCssFile: string | null): Promise<DoctorR
 
   // 1) CSS file detection
   if (!detectedCssFile) {
-    errors.push("Could not auto-detect CSS file. Use: shadcn-theme apply ... --file <path>");
+    errors.push("Could not auto-detect CSS file. Re-run with: shadcn-theme doctor --file <path>");
     return { ok: false, messages, warnings, errors, detectedCssFile: null };
   }
 
