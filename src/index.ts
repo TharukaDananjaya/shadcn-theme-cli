@@ -13,7 +13,7 @@ import { restoreText } from "./lib/io.js";
 const program = new Command();
 
 program.name("shadcn-theme").description("Apply ShadCN theme presets to CSS variables (:root and .dark)").version("0.1.0");
-
+1.0
 program
 	.command("list")
 	.description("List available presets (base/accent)")
