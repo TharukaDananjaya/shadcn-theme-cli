@@ -19,7 +19,7 @@ Works with any project using **ShadCN UI + Tailwind CSS**, including:
 
 ## ✨ Features
 
-- **Apply** 85+ ShadCN color presets instantly (`apply`)
+- **Apply** 85 ShadCN color presets instantly (`apply`)
 - **Preview** themes live with automatic CSS restore on exit (`preview`)
 - **Export** your current theme tokens to a reusable JSON file (`export`)
 - **Diagnose** setup issues that prevent theme changes from showing (`doctor`)
