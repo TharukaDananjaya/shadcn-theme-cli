@@ -9,6 +9,7 @@ import { backupFile, checkFileExists, makeDiff, readText, writeText } from "./li
 import { parseOnlyKeys } from "./lib/groups.js";
 import { runShellCommand } from "./lib/run.js";
 import { restoreText } from "./lib/io.js";
+import { runDoctor } from "./lib/doctor.js";
 
 const program = new Command();
 
@@ -213,6 +214,31 @@ program
 
 		await writeText(opts.out, JSON.stringify(out, null, 2));
 		console.log(pc.green(`Exported theme -> ${opts.out}`));
+	});
+program
+	.command("doctor")
+	.description("Diagnose why theme changes may not reflect in the running app")
+	.option("-f, --file <path>", "CSS file path (auto-detect if omitted)")
+	.action(async (opts) => {
+		const file = opts.file ?? (await detectCssFile());
+		const result = await runDoctor(file);
+
+		console.log("");
+		console.log(pc.bold("shadcn-theme doctor"));
+		console.log("");
+
+		for (const m of result.messages) console.log(pc.green("✔ ") + m);
+		for (const w of result.warnings) console.log(pc.yellow("⚠ ") + w);
+		for (const e of result.errors) console.log(pc.red("✖ ") + e);
+
+		console.log("");
+
+		if (!result.ok) {
+			console.log(pc.red("Doctor found issues. Fix them and try again."));
+			process.exitCode = 1;
+		} else {
+			console.log(pc.green("Doctor checks passed."));
+		}
 	});
 
 program.parseAsync(process.argv);
