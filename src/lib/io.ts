@@ -3,27 +3,35 @@ import path from "node:path";
 import { createTwoFilesPatch } from "diff";
 
 export async function readText(file: string) {
-  return fs.readFile(file, "utf8");
+	return fs.readFile(file, "utf8");
 }
 
 export async function writeText(file: string, content: string) {
-  await fs.writeFile(file, content, "utf8");
+	await fs.writeFile(file, content, "utf8");
 }
 
 export async function backupFile(file: string): Promise<string> {
-  const backupPath = `${file}.bak`;
-  await fs.copyFile(file, backupPath);
-  return backupPath;
+	const backupPath = `${file}.bak`;
+	await fs.copyFile(file, backupPath);
+	return backupPath;
 }
 
 export function makeDiff(file: string, before: string, after: string): string {
-  return createTwoFilesPatch(file, file, before, after, "before", "after");
+	return createTwoFilesPatch(file, file, before, after, "before", "after");
 }
 
 export function resolveDefaultOutFile(out: string): string {
-  return path.resolve(process.cwd(), out);
+	return path.resolve(process.cwd(), out);
 }
 
 export async function restoreText(file: string, original: string) {
-  await fs.writeFile(file, original, "utf8");
+	await fs.writeFile(file, original, "utf8");
+}
+export async function checkFileExists(filePath: string): Promise<boolean> {
+	try {
+		await fs.access(filePath); // default mode F_OK checks for existence
+		return true;
+	} catch (error) {
+		return false;
+	}
 }

@@ -5,7 +5,7 @@ import { detectCssFile } from "./lib/detect.js";
 import { listPresets, loadPreset } from "./lib/presets.js";
 import { applyThemeToCss, extractVarsFromCss } from "./lib/css.js";
 import { validateVars } from "./lib/validate.js";
-import { backupFile, makeDiff, readText, writeText } from "./lib/io.js";
+import { backupFile, checkFileExists, makeDiff, readText, writeText } from "./lib/io.js";
 import { parseOnlyKeys } from "./lib/groups.js";
 import { runShellCommand } from "./lib/run.js";
 import { restoreText } from "./lib/io.js";
@@ -79,8 +79,13 @@ program
         return;
     }
     if (opts.backup) {
-        const bak = await backupFile(file);
-        console.log(pc.gray(`Backup created: ${bak}`));
+        if (await checkFileExists(file)) {
+            console.error(pc.green(`Backup file already exists. Skipping backup to avoid overwrite: ${file}.bak`));
+        }
+        else {
+            const bak = await backupFile(file);
+            console.log(pc.gray(`Backup created: ${bak}`));
+        }
     }
     await writeText(file, after);
     console.log(pc.green(`Applied preset ${base}/${accent}`));

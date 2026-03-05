@@ -21,3 +21,12 @@ export function resolveDefaultOutFile(out) {
 export async function restoreText(file, original) {
     await fs.writeFile(file, original, "utf8");
 }
+export async function checkFileExists(filePath) {
+    try {
+        await fs.access(filePath, fs.constants.F_OK); // F_OK checks for existence
+        return true;
+    }
+    catch (error) {
+        return false;
+    }
+}
