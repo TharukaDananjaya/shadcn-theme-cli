@@ -73,11 +73,94 @@ export async function runDoctor(detectedCssFile: string | null): Promise<DoctorR
     messages.push(`Found required variables: ${requiredVars.join(", ")}`);
   }
 
-  // 4) Tailwind v4 mapping check (your @theme inline)
+  // 4) Tailwind setup detection & validation
+
+  // --- Detect Tailwind version from CSS ---
+  const isTailwindV4 = css.includes('@import "tailwindcss"') || css.includes("@import 'tailwindcss'");
+  const isTailwindV3 = css.includes("@tailwind base") || css.includes("@tailwind utilities") || css.includes("@tailwind components");
+
+  // --- Check for tailwind.config.* (required by v3; optional in v4) ---
+  const twConfigCandidates = [
+    "tailwind.config.ts",
+    "tailwind.config.js",
+    "tailwind.config.mjs",
+    "tailwind.config.cjs",
+  ];
+  let twConfigFile: string | null = null;
+  let twConfigContent: string | null = null;
+  for (const f of twConfigCandidates) {
+    const full = path.resolve(process.cwd(), f);
+    if (await fileExists(full)) {
+      twConfigFile = f;
+      twConfigContent = await readIfExists(full);
+      break;
+    }
+  }
+
+  if (twConfigFile) {
+    messages.push(`Found Tailwind config: ${twConfigFile}`);
+  } else if (isTailwindV3) {
+    errors.push(
+      "Tailwind v3 detected (via @tailwind directives), but no tailwind.config.* found. " +
+      "Create tailwind.config.js or tailwind.config.ts."
+    );
+  } else if (!isTailwindV4) {
+    warnings.push(
+      "No tailwind.config.* file found and no Tailwind v4 import ('@import \"tailwindcss\"') detected. " +
+      "If using Tailwind v3, add a tailwind.config.js/ts. " +
+      "If using Tailwind v4, add '@import \"tailwindcss\"' to your CSS."
+    );
+  }
+
+  // --- Dark mode strategy validation ---
+  const hasDarkCssBlock = containsBlock(css, ".dark");
+  if (hasDarkCssBlock) {
+    if (twConfigContent) {
+      // Tailwind v3: verify darkMode: 'class' in config
+      if (/darkMode\s*:\s*['"]class['"]/.test(twConfigContent)) {
+        messages.push(`Dark mode 'class' strategy confirmed in ${twConfigFile}.`);
+      } else {
+        warnings.push(
+          `Found .dark { } block in CSS but 'darkMode: "class"' not detected in ${twConfigFile}. ` +
+          `Add darkMode: 'class' to your Tailwind config for class-based dark mode.`
+        );
+      }
+    } else if (isTailwindV4) {
+      // Tailwind v4: class-based dark mode requires @custom-variant dark in CSS
+      if (css.includes("@custom-variant dark")) {
+        messages.push("Dark mode class variant configured via '@custom-variant dark'.");
+      } else {
+        warnings.push(
+          "Found .dark { } block in CSS but '@custom-variant dark' not found. " +
+          "For Tailwind v4 class-based dark mode, add: " +
+          "@custom-variant dark (&:where(.dark, .dark *));"
+        );
+      }
+    }
+  }
+
+  // --- @theme inline / bg-primary resolution check (Tailwind v4) ---
   if (!css.includes("@theme inline")) {
-    warnings.push("Missing '@theme inline' mapping. Tailwind utilities like bg-primary may not resolve correctly.");
+    if (isTailwindV4 || (!isTailwindV3 && !twConfigFile)) {
+      warnings.push(
+        "Missing '@theme inline' block. Tailwind v4 utilities like 'bg-primary' require " +
+        "'@theme inline { --color-primary: var(--primary); }' to resolve CSS variables as utilities."
+      );
+    }
   } else {
-    messages.push("Found '@theme inline' mapping.");
+    // Validate that @theme inline contains the --color-primary → --primary mapping
+    const themeInlineMatch = css.match(/@theme\s+inline\s*\{([\s\S]*?)\}/);
+    const themeInlineContent = themeInlineMatch ? themeInlineMatch[1] : "";
+    if (themeInlineContent && themeInlineContent.includes("--color-primary")) {
+      messages.push("Found '@theme inline' with '--color-primary' mapping (bg-primary should resolve).");
+    } else if (themeInlineContent) {
+      warnings.push(
+        "Found '@theme inline' block but '--color-primary' mapping not detected. " +
+        "Add '--color-primary: var(--primary)' inside '@theme inline' for 'bg-primary' to work."
+      );
+    } else {
+      messages.push("Found '@theme inline' mapping.");
+    }
   }
 
   // 5) Check imports (framework detection)
