@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import colors from "tailwindcss/colors";
-import { formatCss, oklch, parseHex } from "culori";
+import { formatCss, oklch, parseHex, parse, converter } from "culori";
 
 const OUT_DIR = path.resolve(process.cwd(), "presets");
 
@@ -70,6 +70,51 @@ function toOklchCss(value) {
   }
 
   throw new Error(`Unsupported color format: ${v}`);
+}
+
+// smart contrast
+const toRgb = converter("rgb");
+
+function srgbToLinear(c) {
+  // c is 0..1
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function relativeLuminance(cssColor) {
+  const c = parse(cssColor);
+  if (!c) throw new Error(`Unable to parse color: ${cssColor}`);
+
+  const rgb = toRgb(c);
+  // culori gives r/g/b as 0..1
+  const R = srgbToLinear(rgb.r ?? 0);
+  const G = srgbToLinear(rgb.g ?? 0);
+  const B = srgbToLinear(rgb.b ?? 0);
+
+  // WCAG relative luminance
+  return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+}
+
+function contrastRatio(bg, fg) {
+  const L1 = relativeLuminance(bg);
+  const L2 = relativeLuminance(fg);
+  const lighter = Math.max(L1, L2);
+  const darker = Math.min(L1, L2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function pickForeground(bgCss, lightTextCss, darkTextCss) {
+  // Choose the foreground color with higher contrast against bg
+  const cLight = contrastRatio(bgCss, lightTextCss);
+  const cDark = contrastRatio(bgCss, darkTextCss);
+  return cLight >= cDark ? lightTextCss : darkTextCss;
+}
+
+function applySmartForeground(tokens, pairs, lightTextCss, darkTextCss) {
+  // pairs: [{ bg: "--primary", fg: "--primary-foreground" }, ...]
+  for (const { bg, fg } of pairs) {
+    if (!tokens[bg]) continue; // skip if bg doesn't exist
+    tokens[fg] = pickForeground(tokens[bg], lightTextCss, darkTextCss);
+  }
 }
 
 // Tailwind palette sometimes includes "black/white" as strings; handle those.
@@ -296,6 +341,24 @@ async function main() {
           ...CHARTS_DARK,
         },
       };
+      // Smart contrast: choose readable foreground tokens automatically
+      const LIGHT_TEXT = "oklch(0.984 0.003 247.858)"; // near-white
+      const DARK_TEXT = "oklch(0.129 0.042 264.695)";  // near-black
+
+      const fgPairs = [
+        { bg: "--primary", fg: "--primary-foreground" },
+        { bg: "--sidebar-primary", fg: "--sidebar-primary-foreground" },
+
+        // Optional but recommended (makes tokens always readable)
+        { bg: "--secondary", fg: "--secondary-foreground" },
+        { bg: "--accent", fg: "--accent-foreground" },
+
+        // If you ever add destructive-foreground:
+        // { bg: "--destructive", fg: "--destructive-foreground" },
+      ];
+
+      applySmartForeground(preset.light, fgPairs, LIGHT_TEXT, DARK_TEXT);
+      applySmartForeground(preset.dark, fgPairs, LIGHT_TEXT, DARK_TEXT);
 
       await writePreset(base, accent, preset);
       count++;

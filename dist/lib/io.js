@@ -23,7 +23,7 @@ export async function restoreText(file, original) {
 }
 export async function checkFileExists(filePath) {
     try {
-        await fs.access(filePath, fs.constants.F_OK); // F_OK checks for existence
+        await fs.access(filePath); // default mode F_OK checks for existence
         return true;
     }
     catch (error) {
