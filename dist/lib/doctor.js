@@ -211,10 +211,26 @@ function normalizePathForBlade(cssFile) {
     return norm;
 }
 async function findInAnyFile(files, predicate) {
-    for (const f of files.slice(0, 80)) { // cap to avoid huge scans
-        const txt = await readIfExists(f);
-        if (txt && predicate(txt))
-            return f;
+    const maxFiles = 80; // cap to avoid huge scans
+    const limitedFiles = files.slice(0, maxFiles);
+    if (limitedFiles.length === 0)
+        return null;
+    const concurrency = Math.min(8, limitedFiles.length); // small worker pool
+    let index = 0;
+    let found = null;
+    async function worker() {
+        while (found === null) {
+            const currentIndex = index++;
+            if (currentIndex >= limitedFiles.length)
+                break;
+            const f = limitedFiles[currentIndex];
+            const txt = await readIfExists(f);
+            if (txt && predicate(txt)) {
+                found = f;
+                break;
+            }
+        }
     }
-    return null;
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    return found;
 }
