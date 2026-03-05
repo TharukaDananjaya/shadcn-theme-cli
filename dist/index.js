@@ -212,11 +212,10 @@ program
     console.log("");
     if (!result.ok) {
         console.log(pc.red("Doctor found issues. Fix them and try again."));
-        process.exit(1);
+        process.exitCode = 1;
     }
     else {
         console.log(pc.green("Doctor checks passed."));
-        process.exit(0);
     }
 });
 program.parseAsync(process.argv);
