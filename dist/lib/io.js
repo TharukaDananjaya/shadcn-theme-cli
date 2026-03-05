@@ -18,3 +18,6 @@ export function makeDiff(file, before, after) {
 export function resolveDefaultOutFile(out) {
     return path.resolve(process.cwd(), out);
 }
+export async function restoreText(file, original) {
+    await fs.writeFile(file, original, "utf8");
+}

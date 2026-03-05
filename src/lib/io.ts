@@ -23,3 +23,7 @@ export function makeDiff(file: string, before: string, after: string): string {
 export function resolveDefaultOutFile(out: string): string {
   return path.resolve(process.cwd(), out);
 }
+
+export async function restoreText(file: string, original: string) {
+  await fs.writeFile(file, original, "utf8");
+}

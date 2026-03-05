@@ -7,11 +7,10 @@ import { applyThemeToCss, extractVarsFromCss } from "./lib/css.js";
 import { validateVars } from "./lib/validate.js";
 import { backupFile, makeDiff, readText, writeText } from "./lib/io.js";
 import { parseOnlyKeys } from "./lib/groups.js";
+import { runShellCommand } from "./lib/run.js";
+import { restoreText } from "./lib/io.js";
 const program = new Command();
-program
-    .name("shadcn-theme")
-    .description("Apply ShadCN theme presets to CSS variables (:root and .dark)")
-    .version("0.1.0");
+program.name("shadcn-theme").description("Apply ShadCN theme presets to CSS variables (:root and .dark)").version("0.1.0");
 program
     .command("list")
     .description("List available presets (base/accent)")
@@ -64,7 +63,7 @@ program
         selectorLight: opts.selector,
         selectorDark: opts.darkSelector,
         createMissing: Boolean(opts.createMissing),
-        onlyKeys
+        onlyKeys,
     });
     if (opts.diff) {
         console.log(makeDiff(file, before, after));
@@ -74,8 +73,7 @@ program
         console.log(pc.yellow(`Created missing block: ${opts.selector}`));
     if (stats.createdDarkBlock)
         console.log(pc.yellow(`Created missing block: ${opts.darkSelector}`));
-    console.log(`Light: replaced ${stats.lightReplaced}, appended ${stats.lightAppended} | ` +
-        `Dark: replaced ${stats.darkReplaced}, appended ${stats.darkAppended}`);
+    console.log(`Light: replaced ${stats.lightReplaced}, appended ${stats.lightAppended} | ` + `Dark: replaced ${stats.darkReplaced}, appended ${stats.darkAppended}`);
     if (opts.dry) {
         console.log(pc.yellow("Dry run: no changes written."));
         return;
@@ -86,6 +84,84 @@ program
     }
     await writeText(file, after);
     console.log(pc.green(`Applied preset ${base}/${accent}`));
+});
+program
+    .command("preview")
+    .description("Temporarily apply a preset, run dev server, and restore CSS on exit")
+    .argument("<base>", "Base palette (e.g. neutral, zinc, slate)")
+    .argument("<accent>", "Accent (e.g. lime, rose, indigo)")
+    .option("-f, --file <path>", "CSS file path (auto-detect if omitted)")
+    .option("--selector <selector>", "Light selector block", ":root")
+    .option("--dark-selector <selector>", "Dark selector block", ".dark")
+    .option("--create-missing", "Create missing blocks", true)
+    .option("--no-create-missing", "Do not create missing blocks")
+    .option("--only <keys>", "Apply only these keys (comma-separated)")
+    .option("--group <name>", "Apply a group: brand|surfaces|sidebar|charts|radius")
+    .option("--cmd <command>", "Dev command to run", "npm run dev")
+    .action(async (base, accent, opts) => {
+    const preset = await loadPreset(base, accent);
+    const file = opts.file ?? (await detectCssFile());
+    if (!file) {
+        console.error(pc.red("Could not auto-detect CSS file. Use --file path/to/globals.css"));
+        process.exit(1);
+    }
+    const before = await readText(file);
+    // apply theme same as apply command
+    const onlyKeys = parseOnlyKeys(opts.only, opts.group);
+    const { updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
+        selectorLight: opts.selector,
+        selectorDark: opts.darkSelector,
+        createMissing: Boolean(opts.createMissing),
+        onlyKeys,
+    });
+    // Write preview CSS
+    await writeText(file, after);
+    console.log(pc.green(`Preview theme active: ${base}/${accent}`));
+    console.log(pc.gray(`File patched: ${file}`));
+    if (stats.createdLightBlock)
+        console.log(pc.yellow(`Created missing block: ${opts.selector}`));
+    if (stats.createdDarkBlock)
+        console.log(pc.yellow(`Created missing block: ${opts.darkSelector}`));
+    console.log(pc.cyan(`Running: ${opts.cmd}`));
+    console.log(pc.yellow("Stop preview with Ctrl+C — CSS will be restored."));
+    let restored = false;
+    const restore = async () => {
+        if (restored)
+            return;
+        restored = true;
+        try {
+            await restoreText(file, before);
+            console.log(pc.green("\nCSS restored."));
+        }
+        catch (e) {
+            console.error(pc.red("\nFailed to restore CSS. Please restore manually from git."));
+            console.error(e);
+        }
+    };
+    // Restore on common exits
+    process.on("SIGINT", async () => {
+        await restore();
+        process.exit(0);
+    });
+    process.on("SIGTERM", async () => {
+        await restore();
+        process.exit(0);
+    });
+    process.on("uncaughtException", async (err) => {
+        console.error(pc.red("Uncaught exception:"), err);
+        await restore();
+        process.exit(1);
+    });
+    process.on("unhandledRejection", async (err) => {
+        console.error(pc.red("Unhandled rejection:"), err);
+        await restore();
+        process.exit(1);
+    });
+    // Run dev server (blocks until it exits)
+    const exitCode = await runShellCommand(String(opts.cmd), process.cwd());
+    // Restore after command ends normally
+    await restore();
+    process.exit(exitCode);
 });
 program
     .command("export")
@@ -106,7 +182,7 @@ program
     const out = {
         name: "exported",
         light,
-        dark
+        dark,
     };
     await writeText(opts.out, JSON.stringify(out, null, 2));
     console.log(pc.green(`Exported theme -> ${opts.out}`));
