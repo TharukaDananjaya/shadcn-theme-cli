@@ -1,0 +1,114 @@
+#!/usr/bin/env node
+import pc from "picocolors";
+import { Command } from "commander";
+import { detectCssFile } from "./lib/detect.js";
+import { listPresets, loadPreset } from "./lib/presets.js";
+import { applyThemeToCss, extractVarsFromCss } from "./lib/css.js";
+import { validateVars } from "./lib/validate.js";
+import { backupFile, makeDiff, readText, writeText } from "./lib/io.js";
+import { parseOnlyKeys } from "./lib/groups.js";
+const program = new Command();
+program
+    .name("shadcn-theme")
+    .description("Apply ShadCN theme presets to CSS variables (:root and .dark)")
+    .version("0.1.0");
+program
+    .command("list")
+    .description("List available presets (base/accent)")
+    .action(async () => {
+    const presets = await listPresets();
+    if (!presets.length) {
+        console.log(pc.yellow("No presets found. Add JSON files under ./presets/<base>/<accent>.json"));
+        return;
+    }
+    for (const p of presets)
+        console.log(`${p.base} ${p.accent}`);
+});
+program
+    .command("apply")
+    .description("Apply a preset to your CSS file")
+    .argument("<base>", "Base palette (e.g. zinc, slate)")
+    .argument("<accent>", "Accent (e.g. blue, rose)")
+    .option("-f, --file <path>", "CSS file path (auto-detect if omitted)")
+    .option("--selector <selector>", "Light selector block", ":root")
+    .option("--dark-selector <selector>", "Dark selector block", ".dark")
+    .option("--create-missing", "Create missing blocks (recommended)", true)
+    .option("--no-create-missing", "Do not create missing blocks")
+    .option("--only <keys>", "Apply only these keys (comma-separated), e.g. primary,ring,border")
+    .option("--group <name>", "Apply a group: brand|surfaces|sidebar|charts|radius")
+    .option("--dry", "Dry run (no write)")
+    .option("--diff", "Print diff")
+    .option("--backup", "Create .bak before writing", true)
+    .option("--no-backup", "Do not create backup")
+    .action(async (base, accent, opts) => {
+    const preset = await loadPreset(base, accent);
+    // Flow 8 validation
+    const issues = [...validateVars(preset.light), ...validateVars(preset.dark)];
+    if (issues.length) {
+        console.log(pc.yellow("Preset validation warnings:"));
+        for (const i of issues.slice(0, 10)) {
+            console.log(`- ${i.key}: ${i.value} (${i.reason})`);
+        }
+        if (issues.length > 10)
+            console.log(`...and ${issues.length - 10} more`);
+    }
+    const file = opts.file ?? (await detectCssFile());
+    if (!file) {
+        console.error(pc.red("Could not auto-detect CSS file. Use --file path/to/globals.css"));
+        process.exit(1);
+    }
+    const before = await readText(file);
+    // Flow 6: partial apply
+    const onlyKeys = parseOnlyKeys(opts.only, opts.group);
+    const { updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
+        selectorLight: opts.selector,
+        selectorDark: opts.darkSelector,
+        createMissing: Boolean(opts.createMissing),
+        onlyKeys
+    });
+    if (opts.diff) {
+        console.log(makeDiff(file, before, after));
+    }
+    console.log(pc.green(`Target: ${file}`));
+    if (stats.createdLightBlock)
+        console.log(pc.yellow(`Created missing block: ${opts.selector}`));
+    if (stats.createdDarkBlock)
+        console.log(pc.yellow(`Created missing block: ${opts.darkSelector}`));
+    console.log(`Light: replaced ${stats.lightReplaced}, appended ${stats.lightAppended} | ` +
+        `Dark: replaced ${stats.darkReplaced}, appended ${stats.darkAppended}`);
+    if (opts.dry) {
+        console.log(pc.yellow("Dry run: no changes written."));
+        return;
+    }
+    if (opts.backup) {
+        const bak = await backupFile(file);
+        console.log(pc.gray(`Backup created: ${bak}`));
+    }
+    await writeText(file, after);
+    console.log(pc.green(`Applied preset ${base}/${accent}`));
+});
+program
+    .command("export")
+    .description("Export current theme tokens from CSS into a JSON preset")
+    .option("-f, --file <path>", "CSS file path (auto-detect if omitted)")
+    .option("--selector <selector>", "Light selector block", ":root")
+    .option("--dark-selector <selector>", "Dark selector block", ".dark")
+    .option("-o, --out <path>", "Output JSON file", "shadcn-theme.export.json")
+    .action(async (opts) => {
+    const file = opts.file ?? (await detectCssFile());
+    if (!file) {
+        console.error(pc.red("Could not auto-detect CSS file. Use --file path/to/globals.css"));
+        process.exit(1);
+    }
+    const css = await readText(file);
+    const light = extractVarsFromCss(css, opts.selector);
+    const dark = extractVarsFromCss(css, opts.darkSelector);
+    const out = {
+        name: "exported",
+        light,
+        dark
+    };
+    await writeText(opts.out, JSON.stringify(out, null, 2));
+    console.log(pc.green(`Exported theme -> ${opts.out}`));
+});
+program.parseAsync(process.argv);
