@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import pc from "picocolors";
+import fs from "node:fs";
 import { Command } from "commander";
 import { detectCssFile } from "./lib/detect.js";
 import { listPresets, loadPreset } from "./lib/presets.js";
@@ -8,7 +9,6 @@ import { validateVars } from "./lib/validate.js";
 import { backupFile, checkFileExists, makeDiff, readText, writeText } from "./lib/io.js";
 import { parseOnlyKeys } from "./lib/groups.js";
 import { runShellCommand } from "./lib/run.js";
-import { restoreText } from "./lib/io.js";
 import { runDoctor } from "./lib/doctor.js";
 
 const program = new Command();
@@ -164,24 +164,45 @@ program
 			process.exit(1);
 		}
 
+		// Write a physical backup to disk before patching.
+		// This is the source of truth for restore — more reliable than memory,
+		// especially across async signal boundaries in signal handlers.
+		const previewBackup = `${file}.preview-backup`;
+		fs.writeFileSync(previewBackup, before, "utf8");
+
 		// apply theme same as apply command
 		let onlyKeys: Set<string> | undefined;
 		try {
 			onlyKeys = parseOnlyKeys(opts.only, opts.group);
 		} catch (e: any) {
 			console.error(pc.red(e.message));
+			fs.rmSync(previewBackup, { force: true });
 			process.exit(1);
 		}
 
-		const { updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
-			selectorLight: opts.selector,
-			selectorDark: opts.darkSelector,
-			createMissing: Boolean(opts.createMissing),
-			onlyKeys,
-		});
+		let after: string;
+		let stats: ReturnType<typeof applyThemeToCss>["stats"];
+		try {
+			({ updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
+				selectorLight: opts.selector,
+				selectorDark: opts.darkSelector,
+				createMissing: Boolean(opts.createMissing),
+				onlyKeys,
+			}));
+		} catch (e: any) {
+			console.error(pc.red(`Failed to apply theme: ${e.message}`));
+			fs.rmSync(previewBackup, { force: true });
+			process.exit(1);
+		}
 
 		// Write preview CSS
-		await writeText(file, after);
+		try {
+			await writeText(file, after);
+		} catch (e: any) {
+			console.error(pc.red(`Failed to write preview CSS: ${e.message}`));
+			fs.rmSync(previewBackup, { force: true });
+			process.exit(1);
+		}
 
 		console.log(pc.green(`Preview theme active: ${base}/${accent}`));
 		console.log(pc.gray(`File patched: ${file}`));
@@ -192,43 +213,59 @@ program
 
 		let restored = false;
 
-		const restore = async () => {
+		// Synchronous restore — MUST be sync because async ops in signal handlers
+		// (SIGINT/SIGTERM) are not guaranteed to complete before the process exits.
+		// This is the root cause of the "CSS restored" message showing but file
+		// being wiped when running via npx on the published package.
+		const restoreSync = () => {
 			if (restored) return;
 			restored = true;
 			try {
-				await restoreText(file, before);
+				const original = fs.readFileSync(previewBackup, "utf8");
+				fs.writeFileSync(file, original, "utf8");
+				try { fs.unlinkSync(previewBackup); } catch {}
 				console.log(pc.green("\nCSS restored."));
 			} catch (e) {
-				console.error(pc.red("\nFailed to restore CSS. Please restore manually from git."));
+				console.error(pc.red(`\nFailed to restore CSS. Your backup is at: ${previewBackup}`));
 				console.error(e);
 			}
 		};
 
-		// Restore on common exits
-		process.on("SIGINT", async () => {
-			await restore();
+		// Async restore used after the dev server exits normally (not from a signal).
+		// We wait 1500ms here to let the dev server finish any file cleanup before restoring.
+		// NOTE: `restored` is intentionally NOT set before the delay so that a SIGINT/SIGTERM
+		// arriving during the wait can still trigger restoreSync() and recover the CSS.
+		const restoreAsync = async () => {
+			if (restored) return;
+			await new Promise((r) => setTimeout(r, 1500));
+			// Re-check after the delay: a signal may have triggered restoreSync() already.
+			restoreSync();
+		};
+
+		process.on("SIGINT", () => {
+			restoreSync();
 			process.exit(0);
 		});
-		process.on("SIGTERM", async () => {
-			await restore();
+		process.on("SIGTERM", () => {
+			restoreSync();
 			process.exit(0);
 		});
-		process.on("uncaughtException", async (err) => {
+		process.on("uncaughtException", (err) => {
 			console.error(pc.red("Uncaught exception:"), err);
-			await restore();
+			restoreSync();
 			process.exit(1);
 		});
-		process.on("unhandledRejection", async (err) => {
+		process.on("unhandledRejection", (err) => {
 			console.error(pc.red("Unhandled rejection:"), err);
-			await restore();
+			restoreSync();
 			process.exit(1);
 		});
 
 		// Run dev server (blocks until it exits)
 		const exitCode = await runShellCommand(String(opts.cmd), process.cwd());
 
-		// Restore after command ends normally
-		await restore();
+		// Normal exit path (dev server stopped by itself, not Ctrl+C)
+		await restoreAsync();
 
 		process.exit(exitCode);
 	});

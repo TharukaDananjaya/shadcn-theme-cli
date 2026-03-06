@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.2] - 2026-03-06
+
+### Fixed
+- Preview command now correctly restores CSS on Ctrl+C when installed via npx
+- Use synchronous file writes in SIGINT/SIGTERM handlers to prevent abandoned async operations
+
+---
+
+## [1.0.1] - 2026-03-06
+
+### Documentation
+
+- Updated README with expanded usage examples and improved command descriptions
+
+---
+
 ## [1.0.0] - 2026-03-06
 
 Initial public release.
