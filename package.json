@@ -1,6 +1,6 @@
 {
 	"name": "shadcn-theme-cli",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "A tool that lets you select any palette from https://ui.shadcn.com/colors and applies it automatically.",
 	"main": "./dist/index.js",
 	"type": "module",
