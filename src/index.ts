@@ -9,7 +9,6 @@ import { validateVars } from "./lib/validate.js";
 import { backupFile, checkFileExists, makeDiff, readText, writeText } from "./lib/io.js";
 import { parseOnlyKeys } from "./lib/groups.js";
 import { runShellCommand } from "./lib/run.js";
-import { restoreText } from "./lib/io.js";
 import { runDoctor } from "./lib/doctor.js";
 
 const program = new Command();
