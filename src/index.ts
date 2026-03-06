@@ -177,7 +177,7 @@ program
 			onlyKeys = parseOnlyKeys(opts.only, opts.group);
 		} catch (e: any) {
 			console.error(pc.red(e.message));
-			fs.unlinkSync(previewBackup);
+			fs.rmSync(previewBackup, { force: true });
 			process.exit(1);
 		}
 
