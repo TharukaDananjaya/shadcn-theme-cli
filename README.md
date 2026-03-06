@@ -4,6 +4,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Node.js >= 18](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
 
+# Quick Start
+```bash
+npx shadcn-theme preview zinc blue
+```
+
 A CLI tool to **apply, preview, export, and diagnose ShadCN UI themes** directly in your project.
 
 Instead of manually copying theme variables, `shadcn-theme` lets you instantly apply **85 ShadCN color presets** to your `globals.css` — with safe backup, diff preview, partial apply, and automatic CSS restore.
@@ -37,15 +42,35 @@ Works with any project using **ShadCN UI + Tailwind CSS**, including:
 - **Node.js** 18 or later
 - A project using **ShadCN UI** with `globals.css` (or equivalent) containing `:root` and `.dark` variable blocks
 
----
-
 ## 📦 Installation
 
 ### Run without installing (recommended)
 
+You can run the CLI directly using **npx**:
+
 ```bash
-npx shadcn-theme-cli apply zinc blue
+npx shadcn-theme list
+npx shadcn-theme apply zinc blue
 ```
+
+This will download and execute the CLI automatically.
+
+---
+
+### Install locally in a project
+
+```bash
+npm install shadcn-theme-cli
+```
+
+Then run it with **npx**:
+
+```bash
+npx shadcn-theme list
+npx shadcn-theme apply zinc blue
+```
+
+---
 
 ### Install globally
 
@@ -53,9 +78,10 @@ npx shadcn-theme-cli apply zinc blue
 npm install -g shadcn-theme-cli
 ```
 
-Then use the `shadcn-theme` command:
+After installing globally you can run the command directly:
 
 ```bash
+shadcn-theme list
 shadcn-theme apply zinc blue
 ```
 
@@ -66,7 +92,7 @@ shadcn-theme apply zinc blue
 ### `list` — List available presets
 
 ```bash
-shadcn-theme list
+npx shadcn-theme list
 ```
 
 Lists all available `<base> <accent>` combinations:
