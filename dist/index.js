@@ -71,8 +71,9 @@ program
     try {
         before = await readText(file);
     }
-    catch {
-        console.error(pc.red(`CSS file not found: ${file}`));
+    catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(pc.red(`Could not read CSS file "${file}": ${msg}`));
         process.exit(1);
     }
     // Flow 6: partial apply
@@ -133,8 +134,11 @@ program
     try {
         preset = await loadPreset(base, accent);
     }
-    catch {
+    catch (err) {
         console.error(pc.red(`Preset not found: "${base} ${accent}"`));
+        if (err instanceof Error && err.message) {
+            console.error(pc.red(`Details: ${err.message}`));
+        }
         console.error(pc.gray(`Run ${pc.white("shadcn-theme list")} to see available presets.`));
         process.exit(1);
     }
@@ -147,8 +151,9 @@ program
     try {
         before = await readText(file);
     }
-    catch {
-        console.error(pc.red(`CSS file not found: ${file}`));
+    catch (e) {
+        console.error(pc.red(`Could not read CSS file: ${file}`));
+        console.error(e);
         process.exit(1);
     }
     // apply theme same as apply command

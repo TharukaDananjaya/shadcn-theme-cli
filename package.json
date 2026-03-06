@@ -53,9 +53,9 @@
 	"devDependencies": {
 		"@types/diff": "^7.0.2",
 		"@types/node": "^25.3.3",
-		"tsx": "^4.21.0",
-		"typescript": "^5.9.3",
 		"culori": "^4.0.2",
-		"tailwindcss": "^4.2.1"
+		"tailwindcss": "^4.2.1",
+		"tsx": "^4.21.0",
+		"typescript": "^5.9.3"
 	}
 }
