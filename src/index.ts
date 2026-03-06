@@ -80,7 +80,7 @@ program
 		}
 
 		// Flow 6: partial apply
-		let onlyKeys;
+		let onlyKeys: Set<string> | undefined;
 		try {
 			onlyKeys = parseOnlyKeys(opts.only, opts.group);
 		} catch (e: any) {
@@ -160,7 +160,7 @@ program
 		}
 
 		// apply theme same as apply command
-		let onlyKeys;
+		let onlyKeys: Set<string> | undefined;
 		try {
 			onlyKeys = parseOnlyKeys(opts.only, opts.group);
 		} catch (e: any) {
