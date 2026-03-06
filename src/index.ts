@@ -44,7 +44,16 @@ program
 	.option("--backup", "Create .bak before writing", true)
 	.option("--no-backup", "Do not create backup")
 	.action(async (base, accent, opts) => {
-		const preset = await loadPreset(base, accent);
+		let preset;
+		try {
+			preset = await loadPreset(base, accent);
+		} catch (error) {
+			console.error(pc.red(`Failed to load preset "${base} ${accent}".`));
+			const message = error instanceof Error ? error.message : String(error);
+			console.error(pc.gray(`Reason: ${message}`));
+			console.error(pc.gray(`Run ${pc.white("shadcn-theme list")} to see available presets.`));
+			process.exit(1);
+		}
 
 		// Flow 8 validation
 		const issues = [...validateVars(preset.light), ...validateVars(preset.dark)];
@@ -62,10 +71,23 @@ program
 			process.exit(1);
 		}
 
-		const before = await readText(file);
+		let before: string;
+		try {
+			before = await readText(file);
+		} catch (err: any) {
+			const msg = err instanceof Error ? err.message : String(err);
+			console.error(pc.red(`Could not read CSS file "${file}": ${msg}`));
+			process.exit(1);
+		}
 
 		// Flow 6: partial apply
-		const onlyKeys = parseOnlyKeys(opts.only, opts.group);
+		let onlyKeys: Set<string> | undefined;
+		try {
+			onlyKeys = parseOnlyKeys(opts.only, opts.group);
+		} catch (e: any) {
+			console.error(pc.red(e.message));
+			process.exit(1);
+		}
 
 		const { updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
 			selectorLight: opts.selector,
@@ -115,7 +137,17 @@ program
 	.option("--group <name>", "Apply a group: brand|surfaces|sidebar|charts|radius")
 	.option("--cmd <command>", "Dev command to run", "npm run dev")
 	.action(async (base, accent, opts) => {
-		const preset = await loadPreset(base, accent);
+		let preset;
+		try {
+			preset = await loadPreset(base, accent);
+		} catch (err) {
+			console.error(pc.red(`Preset not found: "${base} ${accent}"`));
+			if (err instanceof Error && err.message) {
+				console.error(pc.red(`Details: ${err.message}`));
+			}
+			console.error(pc.gray(`Run ${pc.white("shadcn-theme list")} to see available presets.`));
+			process.exit(1);
+		}
 
 		const file = opts.file ?? (await detectCssFile());
 		if (!file) {
@@ -123,10 +155,23 @@ program
 			process.exit(1);
 		}
 
-		const before = await readText(file);
+		let before: string;
+		try {
+			before = await readText(file);
+		} catch (e) {
+			console.error(pc.red(`Could not read CSS file: ${file}`));
+			console.error(e);
+			process.exit(1);
+		}
 
 		// apply theme same as apply command
-		const onlyKeys = parseOnlyKeys(opts.only, opts.group);
+		let onlyKeys: Set<string> | undefined;
+		try {
+			onlyKeys = parseOnlyKeys(opts.only, opts.group);
+		} catch (e: any) {
+			console.error(pc.red(e.message));
+			process.exit(1);
+		}
 
 		const { updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
 			selectorLight: opts.selector,

@@ -134,6 +134,9 @@ shadcn-theme apply zinc blue --file resources/css/app.css
 
 ### `preview` — Live preview with automatic restore
 
+> [!NOTE]
+> Before running `preview`, stop any other dev server so that the server started by this command is the only one running.
+
 Temporarily applies a preset, starts your dev server, and **restores the original CSS** when you exit.
 
 ```bash
