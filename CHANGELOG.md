@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.1] - 2026-03-06
+
+### Documentation
+
+- Updated README with expanded usage examples and improved command descriptions
+
+---
+
 ## [1.0.0] - 2026-03-06
 
 Initial public release.
