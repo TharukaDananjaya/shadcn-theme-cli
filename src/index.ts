@@ -220,11 +220,15 @@ program
 
 		// Async restore used after the dev server exits normally (not from a signal).
 		// We wait 1500ms here to let the dev server finish any file cleanup before restoring.
+		// NOTE: `restored` is intentionally NOT set before the delay so that a SIGINT/SIGTERM
+		// arriving during the wait can still trigger restoreSync() and recover the CSS.
 		const restoreAsync = async () => {
 			if (restored) return;
-			restored = true;
 			try {
 				await new Promise((r) => setTimeout(r, 1500));
+				// Re-check after the delay: a signal may have triggered restoreSync() already.
+				if (restored) return;
+				restored = true;
 				const original = fs.readFileSync(previewBackup, "utf8");
 				fs.writeFileSync(file, original, "utf8");
 				try { fs.unlinkSync(previewBackup); } catch {}
