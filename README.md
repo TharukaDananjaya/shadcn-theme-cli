@@ -61,6 +61,20 @@ shadcn-theme apply zinc blue
 
 ---
 
+### Install locally in a project
+
+```bash
+npm install shadcn-theme-cli
+```
+
+Then run it with **npx**:
+
+```bash
+npx shadcn-theme apply zinc blue
+```
+
+---
+
 ## 🚀 Commands
 
 ### `list` — List available presets
