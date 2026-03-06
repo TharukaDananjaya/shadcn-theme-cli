@@ -5,13 +5,13 @@ import { detectCssFile } from "./lib/detect.js";
 import { listPresets, loadPreset } from "./lib/presets.js";
 import { applyThemeToCss, extractVarsFromCss } from "./lib/css.js";
 import { validateVars } from "./lib/validate.js";
-import { backupFile, makeDiff, readText, writeText } from "./lib/io.js";
+import { backupFile, checkFileExists, makeDiff, readText, writeText } from "./lib/io.js";
 import { parseOnlyKeys } from "./lib/groups.js";
+import { runShellCommand } from "./lib/run.js";
+import { restoreText } from "./lib/io.js";
+import { runDoctor } from "./lib/doctor.js";
 const program = new Command();
-program
-    .name("shadcn-theme")
-    .description("Apply ShadCN theme presets to CSS variables (:root and .dark)")
-    .version("0.1.0");
+program.name("shadcn-theme").description("Apply ShadCN theme presets to CSS variables (:root and .dark)").version("1.0.0");
 program
     .command("list")
     .description("List available presets (base/accent)")
@@ -41,7 +41,17 @@ program
     .option("--backup", "Create .bak before writing", true)
     .option("--no-backup", "Do not create backup")
     .action(async (base, accent, opts) => {
-    const preset = await loadPreset(base, accent);
+    let preset;
+    try {
+        preset = await loadPreset(base, accent);
+    }
+    catch (error) {
+        console.error(pc.red(`Failed to load preset "${base} ${accent}".`));
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(pc.gray(`Reason: ${message}`));
+        console.error(pc.gray(`Run ${pc.white("shadcn-theme list")} to see available presets.`));
+        process.exit(1);
+    }
     // Flow 8 validation
     const issues = [...validateVars(preset.light), ...validateVars(preset.dark)];
     if (issues.length) {
@@ -57,14 +67,28 @@ program
         console.error(pc.red("Could not auto-detect CSS file. Use --file path/to/globals.css"));
         process.exit(1);
     }
-    const before = await readText(file);
+    let before;
+    try {
+        before = await readText(file);
+    }
+    catch {
+        console.error(pc.red(`CSS file not found: ${file}`));
+        process.exit(1);
+    }
     // Flow 6: partial apply
-    const onlyKeys = parseOnlyKeys(opts.only, opts.group);
+    let onlyKeys;
+    try {
+        onlyKeys = parseOnlyKeys(opts.only, opts.group);
+    }
+    catch (e) {
+        console.error(pc.red(e.message));
+        process.exit(1);
+    }
     const { updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
         selectorLight: opts.selector,
         selectorDark: opts.darkSelector,
         createMissing: Boolean(opts.createMissing),
-        onlyKeys
+        onlyKeys,
     });
     if (opts.diff) {
         console.log(makeDiff(file, before, after));
@@ -74,18 +98,122 @@ program
         console.log(pc.yellow(`Created missing block: ${opts.selector}`));
     if (stats.createdDarkBlock)
         console.log(pc.yellow(`Created missing block: ${opts.darkSelector}`));
-    console.log(`Light: replaced ${stats.lightReplaced}, appended ${stats.lightAppended} | ` +
-        `Dark: replaced ${stats.darkReplaced}, appended ${stats.darkAppended}`);
+    console.log(`Light: replaced ${stats.lightReplaced}, appended ${stats.lightAppended} | ` + `Dark: replaced ${stats.darkReplaced}, appended ${stats.darkAppended}`);
     if (opts.dry) {
         console.log(pc.yellow("Dry run: no changes written."));
         return;
     }
     if (opts.backup) {
-        const bak = await backupFile(file);
-        console.log(pc.gray(`Backup created: ${bak}`));
+        if (await checkFileExists(`${file}.bak`)) {
+            console.error(pc.yellow(`Backup file already exists. Skipping backup to avoid overwrite: ${file}.bak`));
+        }
+        else {
+            const bak = await backupFile(file);
+            console.log(pc.gray(`Backup created: ${bak}`));
+        }
     }
     await writeText(file, after);
     console.log(pc.green(`Applied preset ${base}/${accent}`));
+});
+program
+    .command("preview")
+    .description("Temporarily apply a preset, run dev server, and restore CSS on exit")
+    .argument("<base>", "Base palette (e.g. neutral, zinc, slate)")
+    .argument("<accent>", "Accent (e.g. lime, rose, indigo)")
+    .option("-f, --file <path>", "CSS file path (auto-detect if omitted)")
+    .option("--selector <selector>", "Light selector block", ":root")
+    .option("--dark-selector <selector>", "Dark selector block", ".dark")
+    .option("--create-missing", "Create missing blocks", true)
+    .option("--no-create-missing", "Do not create missing blocks")
+    .option("--only <keys>", "Apply only these keys (comma-separated)")
+    .option("--group <name>", "Apply a group: brand|surfaces|sidebar|charts|radius")
+    .option("--cmd <command>", "Dev command to run", "npm run dev")
+    .action(async (base, accent, opts) => {
+    let preset;
+    try {
+        preset = await loadPreset(base, accent);
+    }
+    catch {
+        console.error(pc.red(`Preset not found: "${base} ${accent}"`));
+        console.error(pc.gray(`Run ${pc.white("shadcn-theme list")} to see available presets.`));
+        process.exit(1);
+    }
+    const file = opts.file ?? (await detectCssFile());
+    if (!file) {
+        console.error(pc.red("Could not auto-detect CSS file. Use --file path/to/globals.css"));
+        process.exit(1);
+    }
+    let before;
+    try {
+        before = await readText(file);
+    }
+    catch {
+        console.error(pc.red(`CSS file not found: ${file}`));
+        process.exit(1);
+    }
+    // apply theme same as apply command
+    let onlyKeys;
+    try {
+        onlyKeys = parseOnlyKeys(opts.only, opts.group);
+    }
+    catch (e) {
+        console.error(pc.red(e.message));
+        process.exit(1);
+    }
+    const { updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
+        selectorLight: opts.selector,
+        selectorDark: opts.darkSelector,
+        createMissing: Boolean(opts.createMissing),
+        onlyKeys,
+    });
+    // Write preview CSS
+    await writeText(file, after);
+    console.log(pc.green(`Preview theme active: ${base}/${accent}`));
+    console.log(pc.gray(`File patched: ${file}`));
+    if (stats.createdLightBlock)
+        console.log(pc.yellow(`Created missing block: ${opts.selector}`));
+    if (stats.createdDarkBlock)
+        console.log(pc.yellow(`Created missing block: ${opts.darkSelector}`));
+    console.log(pc.cyan(`Running: ${opts.cmd}`));
+    console.log(pc.yellow("Stop preview with Ctrl+C — CSS will be restored."));
+    let restored = false;
+    const restore = async () => {
+        if (restored)
+            return;
+        restored = true;
+        try {
+            await restoreText(file, before);
+            console.log(pc.green("\nCSS restored."));
+        }
+        catch (e) {
+            console.error(pc.red("\nFailed to restore CSS. Please restore manually from git."));
+            console.error(e);
+        }
+    };
+    // Restore on common exits
+    process.on("SIGINT", async () => {
+        await restore();
+        process.exit(0);
+    });
+    process.on("SIGTERM", async () => {
+        await restore();
+        process.exit(0);
+    });
+    process.on("uncaughtException", async (err) => {
+        console.error(pc.red("Uncaught exception:"), err);
+        await restore();
+        process.exit(1);
+    });
+    process.on("unhandledRejection", async (err) => {
+        console.error(pc.red("Unhandled rejection:"), err);
+        await restore();
+        process.exit(1);
+    });
+    // Run dev server (blocks until it exits)
+    const exitCode = await runShellCommand(String(opts.cmd), process.cwd());
+    // Restore after command ends normally
+    await restore();
+    process.exit(exitCode);
 });
 program
     .command("export")
@@ -106,9 +234,34 @@ program
     const out = {
         name: "exported",
         light,
-        dark
+        dark,
     };
     await writeText(opts.out, JSON.stringify(out, null, 2));
     console.log(pc.green(`Exported theme -> ${opts.out}`));
+});
+program
+    .command("doctor")
+    .description("Diagnose why theme changes may not reflect in the running app")
+    .option("-f, --file <path>", "CSS file path (auto-detect if omitted)")
+    .action(async (opts) => {
+    const file = opts.file ?? (await detectCssFile());
+    const result = await runDoctor(file);
+    console.log("");
+    console.log(pc.bold("shadcn-theme doctor"));
+    console.log("");
+    for (const m of result.messages)
+        console.log(pc.green("✔ ") + m);
+    for (const w of result.warnings)
+        console.log(pc.yellow("⚠ ") + w);
+    for (const e of result.errors)
+        console.log(pc.red("✖ ") + e);
+    console.log("");
+    if (!result.ok) {
+        console.log(pc.red("Doctor found issues. Fix them and try again."));
+        process.exitCode = 1;
+    }
+    else {
+        console.log(pc.green("Doctor checks passed."));
+    }
 });
 program.parseAsync(process.argv);

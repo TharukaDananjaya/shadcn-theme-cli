@@ -18,3 +18,15 @@ export function makeDiff(file, before, after) {
 export function resolveDefaultOutFile(out) {
     return path.resolve(process.cwd(), out);
 }
+export async function restoreText(file, original) {
+    await fs.writeFile(file, original, "utf8");
+}
+export async function checkFileExists(filePath) {
+    try {
+        await fs.access(filePath); // default mode F_OK checks for existence
+        return true;
+    }
+    catch (error) {
+        return false;
+    }
+}

@@ -2,11 +2,18 @@
 	"name": "shadcn-theme-cli",
 	"version": "1.0.0",
 	"description": "A tool that lets you select any palette from https://ui.shadcn.com/colors and applies it automatically.",
-	"main": "index.js",
+	"main": "./dist/index.js",
 	"type": "module",
 	"bin": {
 		"shadcn-theme": "./dist/index.js"
 	},
+	"files": [
+		"dist",
+		"presets",
+		"README.md",
+		"LICENSE",
+		"CHANGELOG.md"
+	],
 	"scripts": {
 		"dev": "tsx src/index.ts",
 		"build": "tsc",
@@ -17,10 +24,22 @@
 		"url": "git+https://github.com/TharukaDananjaya/shadcn-theme-cli.git"
 	},
 	"keywords": [
-		"shadcn-theme"
+		"shadcn",
+		"shadcn-ui",
+		"shadcn-theme",
+		"tailwindcss",
+		"theme",
+		"cli",
+		"css",
+		"color-palette",
+		"nextjs",
+		"vite"
 	],
 	"author": "Tharuka Dananjaya",
 	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
 	"bugs": {
 		"url": "https://github.com/TharukaDananjaya/shadcn-theme-cli/issues"
 	},
@@ -35,6 +54,8 @@
 		"@types/diff": "^7.0.2",
 		"@types/node": "^25.3.3",
 		"tsx": "^4.21.0",
-		"typescript": "^5.9.3"
+		"typescript": "^5.9.3",
+		"culori": "^4.0.2",
+		"tailwindcss": "^4.2.1"
 	}
 }
