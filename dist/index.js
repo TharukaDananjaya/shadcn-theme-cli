@@ -168,7 +168,7 @@ program
     }
     catch (e) {
         console.error(pc.red(e.message));
-        fs.unlinkSync(previewBackup);
+        fs.rmSync(previewBackup, { force: true });
         process.exit(1);
     }
     const { updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
