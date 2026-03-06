@@ -171,14 +171,30 @@ program
         fs.rmSync(previewBackup, { force: true });
         process.exit(1);
     }
-    const { updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
-        selectorLight: opts.selector,
-        selectorDark: opts.darkSelector,
-        createMissing: Boolean(opts.createMissing),
-        onlyKeys,
-    });
+    let after;
+    let stats;
+    try {
+        ({ updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
+            selectorLight: opts.selector,
+            selectorDark: opts.darkSelector,
+            createMissing: Boolean(opts.createMissing),
+            onlyKeys,
+        }));
+    }
+    catch (e) {
+        console.error(pc.red(`Failed to apply theme: ${e.message}`));
+        fs.rmSync(previewBackup, { force: true });
+        process.exit(1);
+    }
     // Write preview CSS
-    await writeText(file, after);
+    try {
+        await writeText(file, after);
+    }
+    catch (e) {
+        console.error(pc.red(`Failed to write preview CSS: ${e.message}`));
+        fs.rmSync(previewBackup, { force: true });
+        process.exit(1);
+    }
     console.log(pc.green(`Preview theme active: ${base}/${accent}`));
     console.log(pc.gray(`File patched: ${file}`));
     if (stats.createdLightBlock)
