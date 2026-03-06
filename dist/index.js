@@ -45,8 +45,10 @@ program
     try {
         preset = await loadPreset(base, accent);
     }
-    catch {
-        console.error(pc.red(`Preset not found: "${base} ${accent}"`));
+    catch (error) {
+        console.error(pc.red(`Failed to load preset "${base} ${accent}".`));
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(pc.gray(`Reason: ${message}`));
         console.error(pc.gray(`Run ${pc.white("shadcn-theme list")} to see available presets.`));
         process.exit(1);
     }
