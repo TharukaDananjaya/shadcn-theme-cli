@@ -74,8 +74,9 @@ program
 		let before: string;
 		try {
 			before = await readText(file);
-		} catch {
-			console.error(pc.red(`CSS file not found: ${file}`));
+		} catch (err: any) {
+			const msg = err instanceof Error ? err.message : String(err);
+			console.error(pc.red(`Could not read CSS file "${file}": ${msg}`));
 			process.exit(1);
 		}
 
