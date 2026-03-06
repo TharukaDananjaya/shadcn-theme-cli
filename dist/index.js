@@ -217,24 +217,9 @@ program
     const restoreAsync = async () => {
         if (restored)
             return;
-        try {
-            await new Promise((r) => setTimeout(r, 1500));
-            // Re-check after the delay: a signal may have triggered restoreSync() already.
-            if (restored)
-                return;
-            restored = true;
-            const original = fs.readFileSync(previewBackup, "utf8");
-            fs.writeFileSync(file, original, "utf8");
-            try {
-                fs.unlinkSync(previewBackup);
-            }
-            catch { }
-            console.log(pc.green("\nCSS restored."));
-        }
-        catch (e) {
-            console.error(pc.red(`\nFailed to restore CSS. Your backup is at: ${previewBackup}`));
-            console.error(e);
-        }
+        await new Promise((r) => setTimeout(r, 1500));
+        // Re-check after the delay: a signal may have triggered restoreSync() already.
+        restoreSync();
     };
     process.on("SIGINT", () => {
         restoreSync();
