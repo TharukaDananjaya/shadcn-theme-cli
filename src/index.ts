@@ -158,8 +158,9 @@ program
 		let before: string;
 		try {
 			before = await readText(file);
-		} catch {
-			console.error(pc.red(`CSS file not found: ${file}`));
+		} catch (e) {
+			console.error(pc.red(`Could not read CSS file: ${file}`));
+			console.error(e);
 			process.exit(1);
 		}
 
