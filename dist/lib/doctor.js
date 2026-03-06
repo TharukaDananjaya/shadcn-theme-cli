@@ -50,14 +50,21 @@ export async function runDoctor(detectedCssFile) {
         errors.push("Missing :root { ... } block in CSS.");
     if (!containsBlock(css, ".dark"))
         warnings.push("Missing .dark { ... } block in CSS (dark mode theme may not work).");
-    // 3) Shadcn tokens existence
+    // 3) Shadcn tokens existence — check for variable *definition* inside :root only
+    //    Scanning full CSS would find .dark definitions as false positives,
+    //    and @theme inline references like var(--primary) are not definitions.
+    const rootBlockMatch = css.match(/:root\s*\{([\s\S]*?)\}/);
+    const rootBlockContent = rootBlockMatch ? rootBlockMatch[1] : "";
     const requiredVars = ["--primary", "--background", "--ring", "--border"];
-    const missingVars = requiredVars.filter((v) => !css.includes(v));
+    const missingVars = requiredVars.filter((v) => {
+        const pattern = new RegExp(`${v.replace(/[-]/g, "\\$&")}\\s*:`);
+        return !pattern.test(rootBlockContent);
+    });
     if (missingVars.length) {
-        errors.push(`Missing required CSS variables: ${missingVars.join(", ")}`);
+        errors.push(`Missing required CSS variables in :root: ${missingVars.join(", ")}`);
     }
     else {
-        messages.push(`Found required variables: ${requiredVars.join(", ")}`);
+        messages.push(`Found required variables in :root: ${requiredVars.join(", ")}`);
     }
     // 4) Tailwind setup detection & validation
     // --- Detect Tailwind version from CSS ---

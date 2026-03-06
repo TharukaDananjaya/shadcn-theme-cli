@@ -41,7 +41,15 @@ program
     .option("--backup", "Create .bak before writing", true)
     .option("--no-backup", "Do not create backup")
     .action(async (base, accent, opts) => {
-    const preset = await loadPreset(base, accent);
+    let preset;
+    try {
+        preset = await loadPreset(base, accent);
+    }
+    catch {
+        console.error(pc.red(`Preset not found: "${base} ${accent}"`));
+        console.error(pc.gray(`Run ${pc.white("shadcn-theme list")} to see available presets.`));
+        process.exit(1);
+    }
     // Flow 8 validation
     const issues = [...validateVars(preset.light), ...validateVars(preset.dark)];
     if (issues.length) {
@@ -57,9 +65,23 @@ program
         console.error(pc.red("Could not auto-detect CSS file. Use --file path/to/globals.css"));
         process.exit(1);
     }
-    const before = await readText(file);
+    let before;
+    try {
+        before = await readText(file);
+    }
+    catch {
+        console.error(pc.red(`CSS file not found: ${file}`));
+        process.exit(1);
+    }
     // Flow 6: partial apply
-    const onlyKeys = parseOnlyKeys(opts.only, opts.group);
+    let onlyKeys;
+    try {
+        onlyKeys = parseOnlyKeys(opts.only, opts.group);
+    }
+    catch (e) {
+        console.error(pc.red(e.message));
+        process.exit(1);
+    }
     const { updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
         selectorLight: opts.selector,
         selectorDark: opts.darkSelector,
@@ -105,15 +127,37 @@ program
     .option("--group <name>", "Apply a group: brand|surfaces|sidebar|charts|radius")
     .option("--cmd <command>", "Dev command to run", "npm run dev")
     .action(async (base, accent, opts) => {
-    const preset = await loadPreset(base, accent);
+    let preset;
+    try {
+        preset = await loadPreset(base, accent);
+    }
+    catch {
+        console.error(pc.red(`Preset not found: "${base} ${accent}"`));
+        console.error(pc.gray(`Run ${pc.white("shadcn-theme list")} to see available presets.`));
+        process.exit(1);
+    }
     const file = opts.file ?? (await detectCssFile());
     if (!file) {
         console.error(pc.red("Could not auto-detect CSS file. Use --file path/to/globals.css"));
         process.exit(1);
     }
-    const before = await readText(file);
+    let before;
+    try {
+        before = await readText(file);
+    }
+    catch {
+        console.error(pc.red(`CSS file not found: ${file}`));
+        process.exit(1);
+    }
     // apply theme same as apply command
-    const onlyKeys = parseOnlyKeys(opts.only, opts.group);
+    let onlyKeys;
+    try {
+        onlyKeys = parseOnlyKeys(opts.only, opts.group);
+    }
+    catch (e) {
+        console.error(pc.red(e.message));
+        process.exit(1);
+    }
     const { updatedCss: after, stats } = applyThemeToCss(before, preset.light, preset.dark, {
         selectorLight: opts.selector,
         selectorDark: opts.darkSelector,
