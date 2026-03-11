@@ -29,7 +29,7 @@ Works with any project using **ShadCN UI + Tailwind CSS**, including:
 - **Auto-detects** your CSS file (Next.js, Vite, Laravel)
 - **Tailwind v4 OKLCH** color system support
 - **Two preset JSON formats** — native format and ShadCN registry format
-- **Reset** Reset to old theme styles. (`reset`)
+- **Reset** — restore CSS from a `.bak` or `.preview-backup` file (`reset`)
 
 ---
 
