@@ -365,8 +365,13 @@ program
     if (current === original) {
         console.log(pc.yellow("CSS file is already identical to backup. Nothing to restore."));
         if (!opts.keepBackup) {
-            fs.rmSync(backupPath, { force: true });
-            console.log(pc.dim(`Removed ${backupLabel}: ${backupPath}`));
+            try {
+                fs.rmSync(backupPath, { force: true });
+                console.log(pc.dim(`Removed ${backupLabel}: ${backupPath}`));
+            }
+            catch {
+                console.warn(pc.yellow(`Could not remove backup file: ${backupPath}`));
+            }
         }
         process.exit(0);
     }
