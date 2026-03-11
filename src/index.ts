@@ -13,7 +13,7 @@ import { runDoctor } from "./lib/doctor.js";
 
 const program = new Command();
 
-program.name("shadcn-theme").description("Apply ShadCN theme presets to CSS variables (:root and .dark)").version("1.0.0");
+program.name("shadcn-theme").description("Apply ShadCN theme presets to CSS variables (:root and .dark)").version("1.1.0");
 
 program
 	.command("list")
@@ -321,6 +321,108 @@ program
 		} else {
 			console.log(pc.green("Doctor checks passed."));
 		}
+	});
+
+program
+	.command("reset")
+	.description("Restore your CSS file from a backup created by apply or preview")
+	.option("-f, --file <path>", "CSS file path (auto-detect if omitted)")
+	.option("--dry", "Dry run (no write)")
+	.option("--diff", "Print diff")
+	.option("--keep-backup", "Keep the backup file after restore")
+	.action(async (opts) => {
+		// 1. Resolve CSS file
+		const file = opts.file ?? (await detectCssFile());
+		if (!file) {
+			console.error(pc.red("Could not auto-detect CSS file. Use --file path/to/globals.css"));
+			process.exit(1);
+		}
+
+		// 2. Check CSS file is readable
+		if (!fs.existsSync(file)) {
+			console.error(pc.red(`CSS file not found: ${file}`));
+			process.exit(1);
+		}
+
+		// 3. Find backup — prefer .bak (from apply), fallback .preview-backup (from preview)
+		const bakPath = `${file}.bak`;
+		const previewBakPath = `${file}.preview-backup`;
+
+		let backupPath: string | null = null;
+		let backupLabel: string | null = null;
+
+		if (fs.existsSync(bakPath)) {
+			backupPath = bakPath;
+			backupLabel = "apply backup (.bak)";
+		} else if (fs.existsSync(previewBakPath)) {
+			backupPath = previewBakPath;
+			backupLabel = "preview backup (.preview-backup)";
+		}
+
+		if (!backupPath) {
+			console.error(pc.red(`No backup found for: ${file}`));
+			console.error(pc.yellow("Expected one of:"));
+			console.error(pc.yellow(`  ${bakPath}`));
+			console.error(pc.yellow(`  ${previewBakPath}`));
+			console.error(pc.yellow(`Run "shadcn-theme apply <base> <accent>" to create a backup, then reset.`));
+			process.exit(1);
+		}
+
+		// 4. Read both files
+		let current: string;
+		let original: string;
+		try {
+			current = await readText(file);
+			original = await readText(backupPath);
+		} catch (e: any) {
+			console.error(pc.red(`Failed to read file: ${e.message}`));
+			process.exit(1);
+		}
+
+		// 5. Already identical — nothing to do
+		if (current === original) {
+			console.log(pc.yellow("CSS file is already identical to backup. Nothing to restore."));
+			if (!opts.keepBackup) {
+				try {
+					fs.rmSync(backupPath, { force: true });
+					console.log(pc.dim(`Removed ${backupLabel}: ${backupPath}`));
+				} catch {
+					console.warn(pc.yellow(`Could not remove backup file: ${backupPath}`));
+				}
+			}
+			process.exit(0);
+		}
+
+		// 6. Diff / dry run
+		if (opts.diff || opts.dry) {
+			console.log(makeDiff(file, current, original));
+		}
+
+		if (opts.dry) {
+			console.log(pc.yellow("Dry run — no changes written."));
+			process.exit(0);
+		}
+
+		// 7. Restore
+		try {
+			await writeText(file, original);
+		} catch (e: any) {
+			console.error(pc.red(`Failed to write restored CSS: ${e.message}`));
+			process.exit(1);
+		}
+
+		// 8. Remove backup unless --keep-backup
+		if (!opts.keepBackup) {
+			try {
+				fs.rmSync(backupPath, { force: true });
+				console.log(pc.dim(`Removed ${backupLabel}: ${backupPath}`));
+			} catch {
+				console.warn(pc.yellow(`Could not remove backup file: ${backupPath}`));
+			}
+		}
+
+		console.log(pc.green(`✔ CSS restored from ${backupLabel}`));
+		console.log(pc.dim(`  File: ${file}`));
 	});
 
 program.parseAsync(process.argv);
